@@ -17,6 +17,8 @@ export default function LiveExpenses() {
   const [category, setCategory] = useState("all");
   const [month, setMonth] = useState("all");
   const [monthWasAutoSelected, setMonthWasAutoSelected] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const monthKey = (date) => {
     const parsed = new Date(date);
@@ -31,6 +33,42 @@ export default function LiveExpenses() {
       month: "short",
       year: "numeric",
     });
+  };
+
+  const selectedExpense = deleteTarget
+    ? rows.find((row) => row.id === deleteTarget)
+    : null;
+
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    setError(null);
+
+    const { error: deleteError } = await supabase
+      .from("expenses")
+      .delete()
+      .eq("id", id);
+
+    setDeletingId(null);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      return false;
+    }
+
+    setRows((prevRows) => prevRows.filter((row) => row.id !== id));
+    return true;
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const success = await handleDelete(deleteTarget);
+    if (success) {
+      setDeleteTarget(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteTarget(null);
   };
 
   useEffect(() => {
@@ -186,13 +224,40 @@ export default function LiveExpenses() {
                     {currency(Number(x.amount))}
                   </p>
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{x.date ? String(x.date).slice(0, 10) : "—"}</span>
-                  {x.category && (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 dark:bg-neutral-800">
-                      {x.category}
-                    </span>
-                  )}
+                <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span>{x.date ? String(x.date).slice(0, 10) : "—"}</span>
+                    {x.category && (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 dark:bg-neutral-800">
+                        {x.category}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(x.id)}
+                    disabled={deletingId === x.id}
+                    className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-md bg-red-50 text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900"
+                    aria-label={
+                      deletingId === x.id
+                        ? "Deleting expense"
+                        : "Delete expense"
+                    }
+                  >
+                    {deletingId === x.id ? (
+                      <span className="text-[10px]">…</span>
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 7a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H7a1 1 0 0 1-1-1Zm2 3a1 1 0 0 1 1 1v7a1 1 0 1 1-2 0v-7a1 1 0 0 1 1-1Zm6 0a1 1 0 0 1 1 1v7a1 1 0 1 1-2 0v-7a1 1 0 0 1 1-1Zm-7-4h8l.75.75A1 1 0 0 1 17 7v1H7V7a1 1 0 0 1 .25-.75L8 6Zm11 3a1 1 0 0 1 1 1v11a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V10a1 1 0 1 1 2 0v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V10a1 1 0 0 1 1-1Z" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
               </li>
             ))}
@@ -207,6 +272,7 @@ export default function LiveExpenses() {
                   <th className="px-6 py-3 font-medium">Description</th>
                   <th className="px-6 py-3 font-medium">Category</th>
                   <th className="px-6 py-3 text-right font-medium">Amount</th>
+                  <th className="px-6 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -225,6 +291,33 @@ export default function LiveExpenses() {
                     <td className="px-6 py-3 text-right font-medium text-red-600 dark:text-red-400">
                       {currency(Number(x.amount))}
                     </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(x.id)}
+                        disabled={deletingId === x.id}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900"
+                        aria-label={
+                          deletingId === x.id
+                            ? "Deleting expense"
+                            : "Delete expense"
+                        }
+                      >
+                        {deletingId === x.id ? (
+                          <span className="text-[10px]">…</span>
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          >
+                            <path d="M6 7a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H7a1 1 0 0 1-1-1Zm2 3a1 1 0 0 1 1 1v7a1 1 0 1 1-2 0v-7a1 1 0 0 1 1-1Zm6 0a1 1 0 0 1 1 1v7a1 1 0 1 1-2 0v-7a1 1 0 0 1 1-1Zm-7-4h8l.75.75A1 1 0 0 1 17 7v1H7V7a1 1 0 0 1 .25-.75L8 6Zm11 3a1 1 0 0 1 1 1v11a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V10a1 1 0 1 1 2 0v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V10a1 1 0 0 1 1-1Z" />
+                          </svg>
+                        )}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -232,6 +325,41 @@ export default function LiveExpenses() {
           </div>
         </>
       )}
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-neutral-950">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Delete expense
+            </h2>
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+              Are you sure you want to delete
+              {selectedExpense?.title
+                ? ` “${selectedExpense.title}”`
+                : " this expense"}
+              ?
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={cancelDelete}
+                disabled={deletingId === deleteTarget}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-gray-200 dark:hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deletingId === deleteTarget}
+                className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingId === deleteTarget ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

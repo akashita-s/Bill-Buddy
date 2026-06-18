@@ -82,7 +82,7 @@ export default function Navbar() {
         }`}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-neutral-800">
-          <span className="text-lg font-bold tracking-tight">💰 MoneyWise</span>
+          <span className="text-lg font-bold tracking-tight">💰 BillBuddy</span>
           <button
             type="button"
             aria-label="Close menu"
