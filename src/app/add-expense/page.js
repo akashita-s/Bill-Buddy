@@ -16,7 +16,8 @@ const CATEGORIES = [
   'Other',
   'Food & Drinks',
   'Health & Fitness',
-  'Gift'
+  'Gift',
+  'Shopping'
 ]
 
 export default function AddExpensePage() {
