@@ -1,6 +1,7 @@
-import DashboardCard from './components/DashboardCard'
-import { cards } from './lib/cards'
-import { summary, currency } from './lib/data'
+import DashboardCard from "./components/DashboardCard";
+import MonthlyExpensesStat from "./components/MonthlyExpensesStat";
+import { cards } from "./lib/cards";
+import { summary, currency } from "./lib/data";
 
 function StatCard({ label, value, accent }) {
   return (
@@ -8,11 +9,11 @@ function StatCard({ label, value, accent }) {
       <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
       <p className={`mt-1 text-2xl font-bold ${accent}`}>{value}</p>
     </div>
-  )
+  );
 }
 
 export default function Home() {
-  const s = summary()
+  const s = summary();
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
@@ -24,10 +25,26 @@ export default function Home() {
       </header>
 
       <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total balance" value={currency(s.totalBalance)} accent="text-gray-900 dark:text-white" />
-        <StatCard label="Income (mo.)" value={currency(s.monthlyIncome)} accent="text-green-600 dark:text-green-400" />
-        <StatCard label="Expenses (mo.)" value={currency(s.monthlyExpenses)} accent="text-red-600 dark:text-red-400" />
-        <StatCard label="Net savings (mo.)" value={currency(s.savings)} accent="text-blue-600 dark:text-blue-400" />
+        <StatCard
+          label="Total balance"
+          value={currency(s.totalBalance)}
+          accent="text-gray-900 dark:text-white"
+        />
+        <StatCard
+          label="Income (mo.)"
+          value={currency(s.monthlyIncome)}
+          accent="text-green-600 dark:text-green-400"
+        />
+        <StatCard
+          label="Expenses (mo.)"
+          value={<MonthlyExpensesStat fallback={s.monthlyExpenses} />}
+          accent="text-red-600 dark:text-red-400"
+        />
+        <StatCard
+          label="Net savings (mo.)"
+          value={currency(s.savings)}
+          accent="text-blue-600 dark:text-blue-400"
+        />
       </div>
 
       <h2 className="mb-4 text-xl font-semibold">Manage</h2>
@@ -37,5 +54,5 @@ export default function Home() {
         ))}
       </div>
     </main>
-  )
+  );
 }

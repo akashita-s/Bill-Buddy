@@ -16,6 +16,7 @@ export default function LiveExpenses() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [month, setMonth] = useState("all");
+  const [monthWasAutoSelected, setMonthWasAutoSelected] = useState(false);
 
   const monthKey = (date) => {
     const parsed = new Date(date);
@@ -65,10 +66,11 @@ export default function LiveExpenses() {
   const latestMonth = months[0] ?? "all";
 
   useEffect(() => {
-    if (month === "all" && months.length > 0) {
+    if (!monthWasAutoSelected && month === "all" && months.length > 0) {
       setMonth(latestMonth);
+      setMonthWasAutoSelected(true);
     }
-  }, [month, months.length, latestMonth]);
+  }, [month, months.length, latestMonth, monthWasAutoSelected]);
 
   if (loading) {
     return (
