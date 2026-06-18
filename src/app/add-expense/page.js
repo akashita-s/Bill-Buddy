@@ -14,6 +14,9 @@ const CATEGORIES = [
   'Subscriptions',
   'Entertainment',
   'Other',
+  'Food & Drinks',
+  'Health & Fitness',
+  'Gift'
 ]
 
 export default function AddExpensePage() {
