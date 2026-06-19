@@ -7,18 +7,18 @@ export const cards = [
     description: 'View balances across your bank, cash and card accounts.',
     icon: '🏦',
   },
-  {
-    slug: 'transactions',
-    title: 'Transactions',
-    description: 'Browse and search your recent money movements.',
-    icon: '🔁',
-  },
-  {
-    slug: 'budgets',
-    title: 'Budgets',
-    description: 'Set monthly limits and track how much is left.',
-    icon: '🎯',
-  },
+  // {
+  //   slug: 'transactions',
+  //   title: 'Transactions',
+  //   description: 'Browse and search your recent money movements.',
+  //   icon: '🔁',
+  // },
+  // {
+  //   slug: 'budgets',
+  //   title: 'Budgets',
+  //   description: 'Set monthly limits and track how much is left.',
+  //   icon: '🎯',
+  // },
   {
     slug: 'expenses',
     title: 'Expenses',

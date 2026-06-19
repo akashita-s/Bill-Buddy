@@ -39,15 +39,15 @@ export const expenses = [
 ]
 
 export const income = [
-  { source: 'Monthly Salary', type: 'Employment', amount: 4200 },
-  { source: 'Freelance Project', type: 'Self-employed', amount: 650 },
+  { source: 'Monthly Salary', type: 'Employment', amount: 100000 },
+  // { source: 'Freelance Project', type: 'Self-employed', amount: 650 },
   { source: 'Dividends', type: 'Investments', amount: 85 },
 ]
 
 export const goals = [
-  { name: 'Emergency Fund', target: 10000, saved: 7400 },
-  { name: 'Vacation to Japan', target: 4000, saved: 1250 },
-  { name: 'New Laptop', target: 2000, saved: 1800 },
+  { name: 'Emergency Fund', target: 1000000, saved: 500000 },
+  { name: 'Vacation to Europe', target: 600000, saved: 600000 },
+  { name: 'New Car', target: 2000000, saved: 2000 },
 ]
 
 // Derived top-line numbers for the dashboard summary banner.

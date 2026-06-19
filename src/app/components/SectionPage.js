@@ -1,4 +1,6 @@
-import Link from 'next/link'
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
 import { cards } from '../lib/cards'
 import LiveExpenses from './LiveExpenses'
 import {
@@ -42,24 +44,252 @@ function Bar({ value, max, danger }) {
   )
 }
 
+const accountStorageKey = 'bill-buddy-accounts'
+
+const accountTypes = ['Bank', 'Credit', 'Cash', 'Investment']
+
+const initialAccounts = accounts.map((account) => ({
+  ...account,
+  id: account.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+}))
+
+const emptyAccount = {
+  name: '',
+  type: accountTypes[0],
+  balance: '',
+}
+
+function normalizeAccount(account) {
+  return {
+    id:
+      account.id ||
+      `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name: account.name.trim(),
+    type: account.type.trim(),
+    balance: Number(account.balance),
+  }
+}
+
+function AccountFields({ value, onChange, idPrefix }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-[1fr_11rem_10rem]">
+      <label className="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+        Name
+        <input
+          id={`${idPrefix}-name`}
+          type="text"
+          value={value.name}
+          onChange={(event) => onChange({ ...value, name: event.target.value })}
+          className="w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-neutral-700 dark:text-white"
+          required
+        />
+      </label>
+      <label className="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+        Type
+        <select
+          id={`${idPrefix}-type`}
+          value={value.type}
+          onChange={(event) => onChange({ ...value, type: event.target.value })}
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white"
+        >
+          {accountTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+        Balance
+        <input
+          id={`${idPrefix}-balance`}
+          type="number"
+          step="0.01"
+          value={value.balance}
+          onChange={(event) => onChange({ ...value, balance: event.target.value })}
+          className="w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-neutral-700 dark:text-white"
+          required
+        />
+      </label>
+    </div>
+  )
+}
+
+function EditableAccounts() {
+  const [accountRows, setAccountRows] = useState(initialAccounts)
+  const [storageReady, setStorageReady] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [draft, setDraft] = useState(emptyAccount)
+  const [newAccount, setNewAccount] = useState(emptyAccount)
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(accountStorageKey)
+    if (!stored) {
+      setStorageReady(true)
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) {
+        setAccountRows(parsed.map(normalizeAccount))
+      }
+    } catch {
+      window.localStorage.removeItem(accountStorageKey)
+    }
+    setStorageReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!storageReady) return
+    window.localStorage.setItem(accountStorageKey, JSON.stringify(accountRows))
+  }, [accountRows, storageReady])
+
+  const totalBalance = useMemo(
+    () => accountRows.reduce((sum, account) => sum + Number(account.balance), 0),
+    [accountRows],
+  )
+
+  function startEdit(account) {
+    setEditingId(account.id)
+    setDraft({
+      name: account.name,
+      type: account.type,
+      balance: String(account.balance),
+    })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setDraft(emptyAccount)
+  }
+
+  function saveEdit(event, id) {
+    event.preventDefault()
+    const nextAccount = normalizeAccount({ ...draft, id })
+    if (!nextAccount.name || !nextAccount.type || Number.isNaN(nextAccount.balance)) return
+
+    setAccountRows((prev) =>
+      prev.map((account) => (account.id === id ? nextAccount : account)),
+    )
+    cancelEdit()
+  }
+
+  function addAccount(event) {
+    event.preventDefault()
+    const nextAccount = normalizeAccount(newAccount)
+    if (!nextAccount.name || !nextAccount.type || Number.isNaN(nextAccount.balance)) return
+
+    setAccountRows((prev) => [...prev, nextAccount])
+    setNewAccount(emptyAccount)
+  }
+
+  function deleteAccount(id) {
+    setAccountRows((prev) => prev.filter((account) => account.id !== id))
+    if (editingId === id) cancelEdit()
+  }
+
+  function resetAccounts() {
+    setAccountRows(initialAccounts)
+    setEditingId(null)
+    setDraft(emptyAccount)
+    window.localStorage.removeItem(accountStorageKey)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Total balance</p>
+          <p className="mt-1 text-2xl font-bold">{currency(totalBalance)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={resetAccounts}
+          className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          Reset sample cards
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {accountRows.map((account) => (
+          <Card key={account.id} className="min-h-40">
+            {editingId === account.id ? (
+              <form onSubmit={(event) => saveEdit(event, account.id)} className="space-y-4">
+                <AccountFields value={draft} onChange={setDraft} idPrefix={`account-${account.id}`} />
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex h-full flex-col gap-6">
+                <div className="flex flex-1 items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium">{account.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{account.type}</p>
+                  </div>
+                  <p className={`shrink-0 text-lg font-semibold ${account.balance < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
+                    {currency(account.balance)}
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(account)}
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteAccount(account.id)}
+                    className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      <form
+        onSubmit={addAccount}
+        className="rounded-xl border border-dashed border-gray-300 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900"
+      >
+        <h2 className="text-lg font-semibold">Add account</h2>
+        <div className="mt-4">
+          <AccountFields value={newAccount} onChange={setNewAccount} idPrefix="new-account" />
+        </div>
+        <button
+          type="submit"
+          className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Add account
+        </button>
+      </form>
+    </div>
+  )
+}
+
 function SectionContent({ slug }) {
   switch (slug) {
     case 'accounts':
-      return (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {accounts.map((a) => (
-            <Card key={a.name} className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{a.name}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{a.type}</p>
-              </div>
-              <p className={`text-lg font-semibold ${a.balance < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
-                {currency(a.balance)}
-              </p>
-            </Card>
-          ))}
-        </div>
-      )
+      return <EditableAccounts />
 
     case 'transactions':
       return (
