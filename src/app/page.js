@@ -1,5 +1,6 @@
 import DashboardCard from "./components/DashboardCard";
 import MonthlyExpensesStat from "./components/MonthlyExpensesStat";
+import TotalBalanceStat from "./components/TotalBalanceStat";
 import { cards } from "./lib/cards";
 import { summary, currency } from "./lib/data";
 
@@ -27,7 +28,7 @@ export default function Home() {
       <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total balance"
-          value={currency(s.totalBalance)}
+          value={<TotalBalanceStat fallback={s.totalBalance} />}
           accent="text-gray-900 dark:text-white"
         />
         <StatCard

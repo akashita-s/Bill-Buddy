@@ -135,6 +135,18 @@ export default function Navbar() {
           >
             ➕ Add Expense
           </Link>
+
+          <Link
+            href="/team"
+            onClick={() => setOpen(false)}
+            className={`rounded-md px-3 py-2 text-sm transition-colors ${
+              pathname === '/team'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-800'
+            }`}
+          >
+            👥 Team
+          </Link>
         </div>
       </aside>
     </>

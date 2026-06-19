@@ -3,14 +3,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { cards } from '../lib/cards'
 import LiveExpenses from './LiveExpenses'
+import { useAuth } from './AuthProvider'
+import { supabase } from '../lib/supabase'
 import {
   currency,
-  accounts,
   transactions,
   budgets,
   income,
   goals,
 } from '../lib/data'
+import {
+  accountStorageKey,
+  accountTypes,
+  accountsTotal,
+  initialAccounts,
+  normalizeAccount,
+} from '../lib/accounts'
 
 function Card({ children, className = '' }) {
   return (
@@ -44,30 +52,10 @@ function Bar({ value, max, danger }) {
   )
 }
 
-const accountStorageKey = 'bill-buddy-accounts'
-
-const accountTypes = ['Bank', 'Credit', 'Cash', 'Investment']
-
-const initialAccounts = accounts.map((account) => ({
-  ...account,
-  id: account.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-}))
-
 const emptyAccount = {
   name: '',
   type: accountTypes[0],
   balance: '',
-}
-
-function normalizeAccount(account) {
-  return {
-    id:
-      account.id ||
-      `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    name: account.name.trim(),
-    type: account.type.trim(),
-    balance: Number(account.balance),
-  }
 }
 
 function AccountFields({ value, onChange, idPrefix }) {
@@ -116,6 +104,7 @@ function AccountFields({ value, onChange, idPrefix }) {
 }
 
 function EditableAccounts() {
+  const { user } = useAuth()
   const [accountRows, setAccountRows] = useState(initialAccounts)
   const [storageReady, setStorageReady] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -146,9 +135,29 @@ function EditableAccounts() {
   }, [accountRows, storageReady])
 
   const totalBalance = useMemo(
-    () => accountRows.reduce((sum, account) => sum + Number(account.balance), 0),
+    () => accountsTotal(accountRows),
     [accountRows],
   )
+
+  useEffect(() => {
+    if (!storageReady || !user?.id) return
+
+    supabase
+      .from('account_balances')
+      .upsert(
+        {
+          user_id: user.id,
+          balance: totalBalance,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' },
+      )
+      .then(({ error }) => {
+        if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+          console.warn('Could not sync account balance:', error.message)
+        }
+      })
+  }, [storageReady, totalBalance, user?.id])
 
   function startEdit(account) {
     setEditingId(account.id)
