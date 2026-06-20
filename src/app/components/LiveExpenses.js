@@ -16,6 +16,7 @@ export default function LiveExpenses() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [month, setMonth] = useState("all");
+  const [selectedUser, setSelectedUser] = useState("all");
   const [monthWasAutoSelected, setMonthWasAutoSelected] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -141,9 +142,13 @@ export default function LiveExpenses() {
     );
   }
 
-  // Distinct categories present in the user's expenses, for the dropdown.
+  // Distinct categories and users present in the expenses, for the dropdowns.
   const categories = Array.from(
     new Set(rows.map((r) => r.category).filter(Boolean)),
+  ).sort();
+
+  const users = Array.from(
+    new Set(rows.map((r) => r.user_id).filter(Boolean)),
   ).sort();
 
   const q = query.trim().toLowerCase();
@@ -154,10 +159,12 @@ export default function LiveExpenses() {
       (r.category ?? "").toLowerCase().includes(q);
     const matchesCategory = category === "all" || r.category === category;
     const matchesMonth = month === "all" || monthKey(r.date) === month;
-    return matchesText && matchesCategory && matchesMonth;
+    const matchesUser = selectedUser === "all" || r.user_id === selectedUser;
+    return matchesText && matchesCategory && matchesMonth && matchesUser;
   });
 
-  const isFiltered = q !== "" || category !== "all" || month !== "all";
+  const isFiltered =
+    q !== "" || category !== "all" || month !== "all" || selectedUser !== "all";
   const total = filtered.reduce((sum, r) => sum + Number(r.amount), 0);
 
   return (
@@ -191,6 +198,18 @@ export default function LiveExpenses() {
           {categories.map((c) => (
             <option key={c} value={c}>
               {c}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedUser}
+          onChange={(e) => setSelectedUser(e.target.value)}
+          className="rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 sm:w-56"
+        >
+          <option value="all">All users</option>
+          {users.map((u) => (
+            <option key={u} value={u}>
+              {u}
             </option>
           ))}
         </select>
