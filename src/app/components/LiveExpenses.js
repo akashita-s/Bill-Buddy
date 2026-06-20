@@ -148,7 +148,7 @@ export default function LiveExpenses() {
   ).sort();
 
   const users = Array.from(
-    new Set(rows.map((r) => r.user_id).filter(Boolean)),
+    new Set(rows.map((r) => r.email).filter(Boolean)),
   ).sort();
 
   const q = query.trim().toLowerCase();
@@ -159,7 +159,7 @@ export default function LiveExpenses() {
       (r.category ?? "").toLowerCase().includes(q);
     const matchesCategory = category === "all" || r.category === category;
     const matchesMonth = month === "all" || monthKey(r.date) === month;
-    const matchesUser = selectedUser === "all" || r.user_id === selectedUser;
+    const matchesUser = selectedUser === "all" || r.email === selectedUser;
     return matchesText && matchesCategory && matchesMonth && matchesUser;
   });
 
@@ -290,6 +290,7 @@ export default function LiveExpenses() {
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Description</th>
                   <th className="px-6 py-3 font-medium">Category</th>
+                  <th className="px-6 py-3 font-medium">Email</th>
                   <th className="px-6 py-3 text-right font-medium">Amount</th>
                   <th className="px-6 py-3 text-right font-medium">Actions</th>
                 </tr>
@@ -306,6 +307,9 @@ export default function LiveExpenses() {
                     <td className="px-6 py-3 font-medium">{x.title}</td>
                     <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
                       {x.category ?? "—"}
+                    </td>
+                    <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
+                      {x.email ?? "—"}
                     </td>
                     <td className="px-6 py-3 text-right font-medium text-red-600 dark:text-red-400">
                       {currency(Number(x.amount))}
