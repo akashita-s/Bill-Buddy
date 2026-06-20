@@ -1,62 +1,62 @@
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
-import { cards } from '../lib/cards'
-import LiveExpenses from './LiveExpenses'
-import { useAuth } from './AuthProvider'
-import { supabase } from '../lib/supabase'
-import {
-  currency,
-  transactions,
-  budgets,
-  income,
-  goals,
-} from '../lib/data'
+import { useEffect, useMemo, useState } from "react";
+import { cards } from "../lib/cards";
+import LiveExpenses from "./LiveExpenses";
+import { useAuth } from "./AuthProvider";
+import { supabase } from "../lib/supabase";
+import { currency, transactions, budgets, income, goals } from "../lib/data";
 import {
   accountStorageKey,
   accountTypes,
   accountsTotal,
   initialAccounts,
   normalizeAccount,
-} from '../lib/accounts'
+} from "../lib/accounts";
 
-function Card({ children, className = '' }) {
+function Card({ children, className = "" }) {
   return (
     <div
       className={`rounded-xl border border-gray-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900 ${className}`}
     >
       {children}
     </div>
-  )
+  );
 }
 
 function Amount({ value }) {
-  const positive = value >= 0
+  const positive = value >= 0;
   return (
-    <span className={positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-      {positive ? '+' : '-'}
+    <span
+      className={
+        positive
+          ? "text-green-600 dark:text-green-400"
+          : "text-red-600 dark:text-red-400"
+      }
+    >
+      {positive ? "+" : "-"}
       {currency(Math.abs(value))}
     </span>
-  )
+  );
 }
 
 function Bar({ value, max, danger }) {
-  const pct = Math.min(100, Math.round((value / max) * 100))
+  const pct = Math.min(100, Math.round((value / max) * 100));
   return (
     <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-neutral-800">
       <div
-        className={`h-2 rounded-full ${danger ? 'bg-red-500' : 'bg-blue-500'}`}
+        className={`h-2 rounded-full ${danger ? "bg-red-500" : "bg-blue-500"}`}
         style={{ width: `${pct}%` }}
       />
     </div>
-  )
+  );
 }
 
 const emptyAccount = {
-  name: '',
+  name: "",
   type: accountTypes[0],
-  balance: '',
-}
+  balance: "",
+};
 
 function AccountFields({ value, onChange, idPrefix }) {
   return (
@@ -94,139 +94,190 @@ function AccountFields({ value, onChange, idPrefix }) {
           type="number"
           step="0.01"
           value={value.balance}
-          onChange={(event) => onChange({ ...value, balance: event.target.value })}
+          onChange={(event) =>
+            onChange({ ...value, balance: event.target.value })
+          }
           className="w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-neutral-700 dark:text-white"
           required
         />
       </label>
     </div>
-  )
+  );
 }
 
 function EditableAccounts() {
-  const { user } = useAuth()
-  const [accountRows, setAccountRows] = useState(initialAccounts)
-  const [storageReady, setStorageReady] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [draft, setDraft] = useState(emptyAccount)
-  const [newAccount, setNewAccount] = useState(emptyAccount)
+  const { user } = useAuth();
+  const [accountRows, setAccountRows] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(emptyAccount);
+  const [newAccount, setNewAccount] = useState(emptyAccount);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(accountStorageKey)
-    if (!stored) {
-      setStorageReady(true)
-      return
-    }
-
-    try {
-      const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed)) {
-        setAccountRows(parsed.map(normalizeAccount))
-      }
-    } catch {
-      window.localStorage.removeItem(accountStorageKey)
-    }
-    setStorageReady(true)
-  }, [])
-
-  useEffect(() => {
-    if (!storageReady) return
-    window.localStorage.setItem(accountStorageKey, JSON.stringify(accountRows))
-  }, [accountRows, storageReady])
-
-  const totalBalance = useMemo(
-    () => accountsTotal(accountRows),
-    [accountRows],
-  )
-
-  useEffect(() => {
-    if (!storageReady || !user?.id) return
+    if (!user?.id) return;
+    let active = true;
+    setLoading(true);
 
     supabase
-      .from('account_balances')
+      .from("accounts")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.warn("Could not load accounts:", error.message);
+          setAccountRows(initialAccounts.map(normalizeAccount));
+        } else if (data && Array.isArray(data) && data.length > 0) {
+          setAccountRows(
+            data.map((r) => ({
+              id: r.id,
+              name: r.name,
+              type: r.type,
+              balance: Number(r.balance),
+            })),
+          );
+        } else {
+          // no rows for this user; seed with initial accounts
+          const seeded = initialAccounts.map(normalizeAccount);
+          // insert seeded accounts for the user
+          const toInsert = seeded.map((s) => ({ ...s, user_id: user.id }));
+          supabase
+            .from("accounts")
+            .insert(toInsert)
+            .then(() => {
+              setAccountRows(seeded);
+            });
+        }
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const totalBalance = useMemo(() => accountsTotal(accountRows), [accountRows]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("account_balances")
       .upsert(
         {
           user_id: user.id,
           balance: totalBalance,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id' },
+        { onConflict: "user_id" },
       )
       .then(({ error }) => {
-        if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
-          console.warn('Could not sync account balance:', error.message)
+        if (error && error.code !== "42P01" && error.code !== "PGRST205") {
+          console.warn("Could not sync account balance:", error.message);
         }
-      })
-  }, [storageReady, totalBalance, user?.id])
+      });
+  }, [totalBalance, user?.id]);
 
   function startEdit(account) {
-    setEditingId(account.id)
+    setEditingId(account.id);
     setDraft({
       name: account.name,
       type: account.type,
       balance: String(account.balance),
-    })
+    });
   }
 
   function cancelEdit() {
-    setEditingId(null)
-    setDraft(emptyAccount)
+    setEditingId(null);
+    setDraft(emptyAccount);
   }
 
-  function saveEdit(event, id) {
-    event.preventDefault()
-    const nextAccount = normalizeAccount({ ...draft, id })
-    if (!nextAccount.name || !nextAccount.type || Number.isNaN(nextAccount.balance)) return
+  async function saveEdit(event, id) {
+    event.preventDefault();
+    const nextAccount = normalizeAccount({ ...draft, id });
+    if (
+      !nextAccount.name ||
+      !nextAccount.type ||
+      Number.isNaN(nextAccount.balance)
+    )
+      return;
+
+    const payload = { ...nextAccount, user_id: user.id };
+    const { error } = await supabase.from("accounts").upsert(payload);
+    if (error) {
+      console.warn("Could not save account:", error.message);
+      return;
+    }
 
     setAccountRows((prev) =>
       prev.map((account) => (account.id === id ? nextAccount : account)),
+    );
+    cancelEdit();
+  }
+
+  async function addAccount(event) {
+    event.preventDefault();
+    const nextAccount = normalizeAccount(newAccount);
+    if (
+      !nextAccount.name ||
+      !nextAccount.type ||
+      Number.isNaN(nextAccount.balance)
     )
-    cancelEdit()
+      return;
+
+    const payload = { ...nextAccount, user_id: user.id };
+    const { error } = await supabase.from("accounts").insert(payload);
+    if (error) {
+      console.warn("Could not add account:", error.message);
+      return;
+    }
+
+    setAccountRows((prev) => [...prev, nextAccount]);
+    setNewAccount(emptyAccount);
   }
 
-  function addAccount(event) {
-    event.preventDefault()
-    const nextAccount = normalizeAccount(newAccount)
-    if (!nextAccount.name || !nextAccount.type || Number.isNaN(nextAccount.balance)) return
-
-    setAccountRows((prev) => [...prev, nextAccount])
-    setNewAccount(emptyAccount)
+  async function deleteAccount(id) {
+    const { error } = await supabase
+      .from("accounts")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (error) {
+      console.warn("Could not delete account:", error.message);
+      return;
+    }
+    setAccountRows((prev) => prev.filter((account) => account.id !== id));
+    if (editingId === id) cancelEdit();
   }
 
-  function deleteAccount(id) {
-    setAccountRows((prev) => prev.filter((account) => account.id !== id))
-    if (editingId === id) cancelEdit()
-  }
-
-  function resetAccounts() {
-    setAccountRows(initialAccounts)
-    setEditingId(null)
-    setDraft(emptyAccount)
-    window.localStorage.removeItem(accountStorageKey)
+  if (loading) {
+    return <p className="text-sm text-gray-500">Loading accounts…</p>;
   }
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total balance</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Total balance
+          </p>
           <p className="mt-1 text-2xl font-bold">{currency(totalBalance)}</p>
         </div>
-        <button
-          type="button"
-          onClick={resetAccounts}
-          className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-        >
-          Reset sample cards
-        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {accountRows.map((account) => (
           <Card key={account.id} className="min-h-40">
             {editingId === account.id ? (
-              <form onSubmit={(event) => saveEdit(event, account.id)} className="space-y-4">
-                <AccountFields value={draft} onChange={setDraft} idPrefix={`account-${account.id}`} />
+              <form
+                onSubmit={(event) => saveEdit(event, account.id)}
+                className="space-y-4"
+              >
+                <AccountFields
+                  value={draft}
+                  onChange={setDraft}
+                  idPrefix={`account-${account.id}`}
+                />
                 <div className="flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
@@ -248,9 +299,13 @@ function EditableAccounts() {
                 <div className="flex flex-1 items-start justify-between gap-4">
                   <div>
                     <p className="font-medium">{account.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{account.type}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {account.type}
+                    </p>
                   </div>
-                  <p className={`shrink-0 text-lg font-semibold ${account.balance < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
+                  <p
+                    className={`shrink-0 text-lg font-semibold ${account.balance < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                  >
                     {currency(account.balance)}
                   </p>
                 </div>
@@ -282,7 +337,11 @@ function EditableAccounts() {
       >
         <h2 className="text-lg font-semibold">Add account</h2>
         <div className="mt-4">
-          <AccountFields value={newAccount} onChange={setNewAccount} idPrefix="new-account" />
+          <AccountFields
+            value={newAccount}
+            onChange={setNewAccount}
+            idPrefix="new-account"
+          />
         </div>
         <button
           type="submit"
@@ -292,15 +351,15 @@ function EditableAccounts() {
         </button>
       </form>
     </div>
-  )
+  );
 }
 
 function SectionContent({ slug }) {
   switch (slug) {
-    case 'accounts':
-      return <EditableAccounts />
+    case "accounts":
+      return <EditableAccounts />;
 
-    case 'transactions':
+    case "transactions":
       return (
         <>
           {/* Mobile: stacked cards so nothing gets clipped on narrow screens. */}
@@ -339,10 +398,17 @@ function SectionContent({ slug }) {
               </thead>
               <tbody>
                 {transactions.map((t, i) => (
-                  <tr key={i} className="border-t border-gray-100 dark:border-neutral-800">
-                    <td className="px-6 py-3 text-gray-500 dark:text-gray-400">{t.date}</td>
+                  <tr
+                    key={i}
+                    className="border-t border-gray-100 dark:border-neutral-800"
+                  >
+                    <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
+                      {t.date}
+                    </td>
                     <td className="px-6 py-3 font-medium">{t.name}</td>
-                    <td className="px-6 py-3 text-gray-500 dark:text-gray-400">{t.category}</td>
+                    <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
+                      {t.category}
+                    </td>
                     <td className="px-6 py-3 text-right font-medium">
                       <Amount value={t.amount} />
                     </td>
@@ -352,18 +418,24 @@ function SectionContent({ slug }) {
             </table>
           </Card>
         </>
-      )
+      );
 
-    case 'budgets':
+    case "budgets":
       return (
         <div className="space-y-4">
           {budgets.map((b) => {
-            const over = b.spent > b.limit
+            const over = b.spent > b.limit;
             return (
               <Card key={b.category}>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="font-medium">{b.category}</span>
-                  <span className={over ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                  <span
+                    className={
+                      over
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-gray-500 dark:text-gray-400"
+                    }
+                  >
                     {currency(b.spent)} / {currency(b.limit)}
                   </span>
                 </div>
@@ -374,22 +446,24 @@ function SectionContent({ slug }) {
                   </p>
                 )}
               </Card>
-            )
+            );
           })}
         </div>
-      )
+      );
 
-    case 'expenses':
-      return <LiveExpenses />
+    case "expenses":
+      return <LiveExpenses />;
 
-    case 'income':
+    case "income":
       return (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {income.map((i) => (
             <Card key={i.source} className="flex items-center justify-between">
               <div>
                 <p className="font-medium">{i.source}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{i.type}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {i.type}
+                </p>
               </div>
               <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                 {currency(i.amount)}
@@ -397,13 +471,13 @@ function SectionContent({ slug }) {
             </Card>
           ))}
         </div>
-      )
+      );
 
-    case 'goals':
+    case "goals":
       return (
         <div className="space-y-4">
           {goals.map((g) => {
-            const pct = Math.round((g.saved / g.target) * 100)
+            const pct = Math.round((g.saved / g.target) * 100);
             return (
               <Card key={g.name}>
                 <div className="mb-2 flex items-center justify-between text-sm">
@@ -414,19 +488,19 @@ function SectionContent({ slug }) {
                 </div>
                 <Bar value={g.saved} max={g.target} />
               </Card>
-            )
+            );
           })}
         </div>
-      )
+      );
 
     default:
-      return null
+      return null;
   }
 }
 
 // Shared layout for each section's page, looked up by slug.
 export default function SectionPage({ slug }) {
-  const card = cards.find((c) => c.slug === slug)
+  const card = cards.find((c) => c.slug === slug);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-4">
@@ -441,11 +515,13 @@ export default function SectionPage({ slug }) {
         <span className="text-5xl">{card.icon}</span>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{card.title}</h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">{card.description}</p>
+          <p className="mt-1 text-gray-500 dark:text-gray-400">
+            {card.description}
+          </p>
         </div>
       </header>
 
       <SectionContent slug={slug} />
     </main>
-  )
+  );
 }
