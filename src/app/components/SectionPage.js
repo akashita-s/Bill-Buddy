@@ -7,7 +7,6 @@ import { useAuth } from "./AuthProvider";
 import { supabase } from "../lib/supabase";
 import { currency, transactions, budgets, income, goals } from "../lib/data";
 import {
-  accountStorageKey,
   accountTypes,
   accountsTotal,
   initialAccounts,
@@ -48,6 +47,61 @@ function Bar({ value, max, danger }) {
         className={`h-2 rounded-full ${danger ? "bg-red-500" : "bg-blue-500"}`}
         style={{ width: `${pct}%` }}
       />
+    </div>
+  );
+}
+
+const chartColors = [
+  "#2563eb",
+  "#ec4899",
+  "#14b8a6",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ef4444",
+  "#22c55e",
+];
+
+function PieChart({ data, size = 220 }) {
+  const radius = 86;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className="relative mx-auto h-[260px] w-[260px] sm:mx-0">
+      <svg width={size} height={size} viewBox="0 0 260 260">
+        <circle
+          cx="130"
+          cy="130"
+          r={radius}
+          fill="transparent"
+          stroke="rgba(148,163,184,0.2)"
+          strokeWidth="32"
+        />
+        {data.map((slice) => (
+          <circle
+            key={slice.id}
+            cx="130"
+            cy="130"
+            r={radius}
+            fill="transparent"
+            stroke={slice.color}
+            strokeWidth="32"
+            strokeDasharray={`${slice.dash} ${circumference - slice.dash}`}
+            strokeDashoffset={-slice.offset}
+            transform="rotate(-90 130 130)"
+            strokeLinecap="butt"
+          />
+        ))}
+      </svg>
+      <div className="absolute inset-0 grid place-items-center text-center">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Accounts</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+            {data.length > 0
+              ? data.reduce((sum, slice) => sum + slice.value, 0)
+              : 0}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -159,6 +213,32 @@ function EditableAccounts() {
 
   const totalBalance = useMemo(() => accountsTotal(accountRows), [accountRows]);
 
+  const chartData = useMemo(() => {
+    const total = accountRows.reduce(
+      (sum, account) => sum + Math.abs(account.balance),
+      0,
+    );
+    let offset = 0;
+    return accountRows
+      .filter((account) => account.balance !== 0)
+      .map((account, index) => {
+        const value = Math.abs(account.balance);
+        const ratio = total > 0 ? value / total : 0;
+        const dash = ratio * 2 * Math.PI * 86;
+        const slice = {
+          id: account.id,
+          name: account.name,
+          value: account.balance,
+          absolute: value,
+          color: chartColors[index % chartColors.length],
+          dash,
+          offset,
+        };
+        offset += dash;
+        return slice;
+      });
+  }, [accountRows]);
+
   useEffect(() => {
     if (!user?.id) return;
     supabase
@@ -254,6 +334,8 @@ function EditableAccounts() {
     return <p className="text-sm text-gray-500">Loading accounts…</p>;
   }
 
+  const totalAbsolute = chartData.reduce((sum, item) => sum + item.absolute, 0);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between">
@@ -265,70 +347,114 @@ function EditableAccounts() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {accountRows.map((account) => (
-          <Card key={account.id} className="min-h-40">
-            {editingId === account.id ? (
-              <form
-                onSubmit={(event) => saveEdit(event, account.id)}
-                className="space-y-4"
-              >
-                <AccountFields
-                  value={draft}
-                  onChange={setDraft}
-                  idPrefix={`account-${account.id}`}
-                />
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,_1fr)]">
+        <Card className="p-4">
+          <div className="flex flex-col items-center gap-4">
+            <PieChart data={chartData} />
+            <div className="w-full space-y-3">
+              {chartData.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Add accounts to see the distribution chart.
+                </p>
+              ) : (
+                chartData.map((slice) => (
+                  <div
+                    key={slice.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-neutral-800 dark:bg-neutral-950"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                  >
-                    Save
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="flex h-full flex-col gap-6">
-                <div className="flex flex-1 items-start justify-between gap-4">
-                  <div>
-                    <p className="font-medium">{account.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {account.type}
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="h-3 w-3 rounded-full"
+                        style={{ backgroundColor: slice.color }}
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {slice.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {slice.value < 0 ? "-" : "+"}
+                          {currency(slice.absolute)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {Math.round(
+                        (slice.absolute / Math.max(1, totalAbsolute)) * 100,
+                      )}
+                      %
                     </p>
                   </div>
-                  <p
-                    className={`shrink-0 text-lg font-semibold ${account.balance < 0 ? "text-red-600 dark:text-red-400" : ""}`}
-                  >
-                    {currency(account.balance)}
-                  </p>
+                ))
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {accountRows.map((account) => (
+            <Card key={account.id} className="min-h-40">
+              {editingId === account.id ? (
+                <form
+                  onSubmit={(event) => saveEdit(event, account.id)}
+                  className="space-y-4"
+                >
+                  <AccountFields
+                    value={draft}
+                    onChange={setDraft}
+                    idPrefix={`account-${account.id}`}
+                  />
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex h-full flex-col gap-6">
+                  <div className="flex flex-1 items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium">{account.name}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {account.type}
+                      </p>
+                    </div>
+                    <p
+                      className={`shrink-0 text-lg font-semibold ${account.balance < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                    >
+                      {currency(account.balance)}
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(account)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteAccount(account.id)}
+                      className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startEdit(account)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteAccount(account.id)}
-                    className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-900"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
-          </Card>
-        ))}
+              )}
+            </Card>
+          ))}
+        </div>
       </div>
 
       <form
